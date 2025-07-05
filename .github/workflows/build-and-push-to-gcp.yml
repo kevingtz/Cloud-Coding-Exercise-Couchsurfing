@@ -1,0 +1,52 @@
+name: Build and Push Docker Image to Artifact Registry
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Permite la ejecución manual
+
+env:
+  GAR_LOCATION: us-central1 # Cambia esto si usas otra región
+  IMAGE_NAME: app
+
+jobs:
+  build-and-push:
+    name: Build and Push to GCP
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
+          service_account: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
+
+      - name: Set up Docker with gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: '${{ secrets.GCP_PROJECT_ID }}'
+
+      - name: Configure Docker
+        run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
+
+      - name: Define image tag
+        id: image_tag
+        run: echo "TAG=$(date +%Y%m%d%H%M%S)-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+
+      - name: Build and Push Docker Image
+        run: |
+          docker build --tag "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-repo/${{ env.IMAGE_NAME }}:${{ env.TAG }}" .
+          docker push "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-repo/${{ env.IMAGE_NAME }}:${{ env.TAG }}"
+
+      - name: 'Output a link to the new image'
+        run: >
+          echo "Image pushed: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-repo/${{ env.IMAGE_NAME }}:${{ env.TAG }}" 
