@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Greetings App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+            font-size: 1.2em;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .greetings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .greeting-card {
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-left: 4px solid #4facfe;
+        }
+        
+        .greeting-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        
+        .greeting-card h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+        
+        .greeting-card .greeting-text {
+            color: #34495e;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        
+        .greeting-card .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .greeting-card .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .greeting-card .user-details {
+            flex: 1;
+        }
+        
+        .greeting-card .user-id {
+            color: #adb5bd;
+            font-size: 0.8em;
+        }
+        
+        .error {
+            background: #ffe6e6;
+            color: #d63384;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+            border-left: 4px solid #d63384;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 30px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4facfe;
+        }
+        
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+        
+        .refresh-btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: transform 0.3s ease;
+            margin-bottom: 20px;
+        }
+        
+        .refresh-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .refresh-btn:active {
+            transform: scale(0.95);
+        }
+        
+        @media (max-width: 768px) {
+            .greetings-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Greetings Application</h1>
+            <p>Welcome to our personalized greeting system!</p>
+        </div>
+        
+        <div class="content">
+            <button class="refresh-btn" onclick="loadGreetings()">🔄 Refresh Greetings</button>
+            
+            <div id="content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading greetings...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadGreetings() {
+            const contentDiv = document.getElementById('content');
+            const startTime = Date.now();
+            
+            contentDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading greetings...</p>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch('/api/greetings');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const endTime = Date.now();
+                const loadTime = endTime - startTime;
+                
+                if (data.greetings && data.greetings.length > 0) {
+                    displayGreetings(data.greetings);
+                } else {
+                    contentDiv.innerHTML = '<div class="error">No greetings found in the database.</div>';
+                }
+            } catch (error) {
+                console.error('Error loading greetings:', error);
+                contentDiv.innerHTML = `
+                    <div class="error">
+                        <strong>Error loading greetings:</strong> ${error.message}
+                        <br><br>
+                        Please make sure the backend server is running and accessible.
+                    </div>
+                `;
+            }
+        }
+        
+        function displayGreetings(greetings) {
+            const contentDiv = document.getElementById('content');
+            
+            const greetingsHtml = greetings.map(greeting => {
+                
+                return `
+                    <div class="greeting-card">
+                        <h3>${greeting.name}</h3>
+                        <div class="greeting-text">${greeting.greeting}</div>
+                    </div>
+                `;
+            }).join('');
+            
+            contentDiv.innerHTML = `
+                <div class="greetings-grid">
+                    ${greetingsHtml}
+                </div>
+            `;
+        }
+        
+        // Load greetings when page loads
+        document.addEventListener('DOMContentLoaded', loadGreetings);
+    </script>
+</body>
+</html>
