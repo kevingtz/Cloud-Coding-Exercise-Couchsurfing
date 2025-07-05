@@ -1,0 +1,12 @@
+{
+  "displayName": "GitHub Provider",
+  "attributeMapping": {
+    "google.subject": "assertion.sub",
+    "attribute.repository": "assertion.repository",
+    "attribute.repository_owner": "assertion.repository_owner"
+  },
+  "oidc": {
+    "issuerUri": "https://token.actions.githubusercontent.com"
+  },
+  "attributeCondition": "assertion.iss == 'https://token.actions.githubusercontent.com'"
+} 
