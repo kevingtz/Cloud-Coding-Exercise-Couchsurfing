@@ -1,23 +1,29 @@
-name: Build and Push Docker Image to Artifact Registry
+name: Build, Push, and Deploy to GCE
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch: # Permite la ejecución manual
+  workflow_dispatch:
 
 env:
   GAR_LOCATION: us-central1 # Cambia esto si usas otra región
   IMAGE_NAME: app
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+  WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
 
 jobs:
   build-and-push:
-    name: Build and Push to GCP
+    name: Build and Push to Artifact Registry
     runs-on: ubuntu-latest
-
     permissions:
-      contents: read
-      id-token: write
+      contents: 'read'
+      id-token: 'write'
+
+    outputs:
+      image_path: ${{ steps.push_image.outputs.image_path }}
+      image_tag: ${{ steps.image_tag.outputs.TAG }}
 
     steps:
       - name: Checkout repository
@@ -27,26 +33,67 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: '${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}'
-          service_account: '${{ secrets.GCP_SERVICE_ACCOUNT }}'
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
 
-      - name: Set up Docker with gcloud
+      - name: Set up gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: '${{ secrets.GCP_PROJECT_ID }}'
 
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ env.GAR_LOCATION }}-docker.pkg.dev
 
       - name: Define image tag
         id: image_tag
-        run: echo "TAG=$(date +%Y%m%d%H%M%S)-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+        run: |
+          TAG="$(date +%Y%m%d%H%M%S)-$(echo $GITHUB_SHA | cut -c1-7)"
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
 
       - name: Build and Push Docker Image
+        id: push_image
         run: |
-          docker build --tag "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-repo/${{ env.IMAGE_NAME }}:${{ env.TAG }}" .
-          docker push "${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-repo/${{ env.IMAGE_NAME }}:${{ env.TAG }}"
+          IMAGE_PATH="${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/app-repo/${{ env.IMAGE_NAME }}:${{ steps.image_tag.outputs.TAG }}"
+          docker build --tag "$IMAGE_PATH" .
+          docker push "$IMAGE_PATH"
+          echo "image_path=$IMAGE_PATH" >> $GITHUB_OUTPUT
+          echo "Image pushed: $IMAGE_PATH"
 
-      - name: 'Output a link to the new image'
-        run: >
-          echo "Image pushed: ${{ env.GAR_LOCATION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/app-repo/${{ env.IMAGE_NAME }}:${{ env.TAG }}" 
+  deploy-to-gce:
+    name: Deploy to GCE Instance Group
+    runs-on: ubuntu-latest
+    needs: build-and-push # Este job depende del anterior
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.SERVICE_ACCOUNT }}
+      
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Create new instance template
+        run: |
+          gcloud compute instance-templates create-with-container ${{ env.IMAGE_NAME }}-template-${{ needs.build-and-push.outputs.image_tag }} \
+            --project=${{ env.PROJECT_ID }} \
+            --container-image=${{ needs.build-and-push.outputs.image_path }} \
+            --container-restart-policy=always \
+            --tags=http-server,https-server # Ajusta las etiquetas de firewall según tus necesidades
+
+      - name: Update instance group
+        run: |
+          gcloud compute instance-groups managed set-instance-template ${{ secrets.GCE_INSTANCE_GROUP_NAME }} \
+            --project=${{ env.PROJECT_ID }} \
+            --zone=${{ secrets.GCE_ZONE }} \
+            --template=${{ env.IMAGE_NAME }}-template-${{ needs.build-and-push.outputs.image_tag }}
+
+      - name: Wait for rollout to complete
+        run: |
+          gcloud compute instance-groups managed wait-until ${{ secrets.GCE_INSTANCE_GROUP_NAME }} \
+            --project=${{ env.PROJECT_ID }} \
+            --zone=${{ secrets.GCE_ZONE }} \
+            --version-target-reached
